@@ -19,9 +19,10 @@ if( $ENV{'REQUEST_METHOD'} eq "POST" ) {
 }else{
   $channel = form_decode_get($ENV{'QUERY_STRING'});
 }
+$channel =~ s/^\#//;
 
-if(($date ||= 0) !~ /^\d$/){ error("Invalid Date."); }
-if(($time ||= 0) !~ /^\d$/){ error("Invalid Time."); }
+if(($date ||= 0) !~ /^\d+$/){ error("Invalid Date."); }
+if(($time ||= 0) !~ /^\d+$/){ error("Invalid Time."); }
 if(length($channel) > 40)  { error("Invalid Channel."); }
 $filename = $LOGDIR . dotted_datetime(time()-$date*86400) . ".txt";
 unless(-f $filename){ error("File Not Found."); }
@@ -35,7 +36,7 @@ if($ENV{'REQUEST_METHOD'} eq 'POST' && $channel eq '' and $time == 0){
 exit 0;
 
 sub show_log{  my $c = shift; my $t = shift; my @l = @_; default_html($c, $t, "", @l); }
-sub error{ default_html("", 0, $_[0]); }
+sub error{ default_html("", 0, $_[0]); exit 0; }
 
 sub default_html{
   my $channel = shift;
@@ -43,7 +44,17 @@ sub default_html{
   my $message = shift;
   my @log     = @_;
 
+  foreach(@log){
+    $_ =~ s/&/&amp;/g;
+    $_ =~ s/</&lt;/g;
+    $_ =~ s/>/&gt;/g;
+    $_ =~ s/"/&quot;/g;
+    $_ =~ s/\#$channel://i if $channel;
+  }
   if($message) { $message = "<p>$message</p>"; }
+  if($channel) {
+    unshift(@log, "<strong>Channel: $channel</strong>\n\n");
+  }
   if(@log > 0) { unshift(@log, "<hr><pre>"); push(@log, "</pre>"); }
 
   my @timeselect;
@@ -120,11 +131,11 @@ sub log_grep{
   my $channel  = shift;
   my $time     = shift;
 
-  $channel =~ s/^\#//;
+  if($channel){ $channel .= ":"; } # without this operation, channel option would be beginning-match.
   my @log;
   open(IN, $filename);
   foreach(<IN>){
-    if($_ =~ /^(\d\d):\d\d:\d\d [><]\#$channel:/i){
+    if($_ =~ /^(\d\d):\d\d:\d\d [><]\#$channel/i){
       push(@log, $_) unless $1 < $time;
     }
   }
